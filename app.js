@@ -319,10 +319,14 @@ function watchStream(ctx, stream, who, key) {
 
 // With a Groq key: the shared call audio is "Them", the microphone is "You".
 async function startGroq() {
-  let shared;
+  let shared = null;
   try { shared = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); }
-  catch { throw new Error('Sharing was cancelled, so nothing is being heard.'); }
+  catch (err) {
+    // NotReadableError: the computer's sound could not be opened (seen with some USB headsets). Carry on with the microphone.
+    if (err.name !== 'NotReadableError') throw new Error('Sharing was cancelled, so nothing is being heard.');
+  }
   const mic = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
+  if (!shared && !mic) throw new Error('Neither the computer\'s sound nor the microphone could be opened.');
   const ctx = new AudioContext(), flush = [];
   const stop = () => {
     flush.forEach(f => f());
@@ -330,13 +334,15 @@ async function startGroq() {
     ctx.close();
   };
   try {
-    if (!shared.getAudioTracks().length) throw new Error('No audio was shared. Pick the tab with your call and turn on "Also share tab audio".');
+    if (shared && !shared.getAudioTracks().length) throw new Error('No audio was shared. Pick the tab with your call and turn on "Also share tab audio".');
     await ctx.audioWorklet.addModule(LEVEL_WORKLET);
-    flush.push(watchStream(ctx, shared, 'Them', settings.groqKey));
-    if (mic) flush.push(watchStream(ctx, mic, 'You', settings.groqKey));
-    else liveError.textContent = 'Microphone is blocked, so only the other side is transcribed.';
+    if (shared) flush.push(watchStream(ctx, shared, 'Them', settings.groqKey));
+    // Without the shared sound the microphone may hear both sides, so its lines get no label.
+    if (mic) flush.push(watchStream(ctx, mic, shared ? 'You' : undefined, settings.groqKey));
+    if (!mic) liveError.textContent = 'Microphone is blocked, so only the other side is transcribed.';
+    if (!shared) liveError.textContent = 'Could not capture this computer\'s sound, so only your microphone is heard. Play the call on speakers, or switch the sound output away from a USB headset and try again.';
   } catch (err) { stop(); throw err; }
-  shared.getTracks().forEach(t => t.onended = () => stopListening()); // user pressed the browser's "Stop sharing"
+  shared?.getTracks().forEach(t => t.onended = () => stopListening()); // user pressed the browser's "Stop sharing"
   return stop;
 }
 

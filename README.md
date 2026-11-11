@@ -11,7 +11,14 @@ An open source AI practice partner for math and job interviews. No server, no ac
   - With a Groq API key in Settings (free at console.groq.com): share the call's tab with "Also share tab audio" on. The tab is transcribed as "Them" and your microphone as "You", using Groq's hosted Whisper. Chrome or Edge. Use headphones so the microphone does not pick up the other side twice.
   - Without one: browser speech recognition on your microphone only (Chrome, Edge or Safari).
 
-## Run it
+## Download
+
+- **Windows**: [talkback-windows.exe](https://github.com/philipw455-svg/talkback/releases/latest/download/talkback-windows.exe). Double-click to run, nothing to install. Windows shows a "Windows protected your PC" notice because the app is not code-signed: choose More info, then Run anyway.
+- **Mac**: [talkback-mac.dmg](https://github.com/philipw455-svg/talkback/releases/latest/download/talkback-mac.dmg) (Intel and Apple Silicon). Open it and drag talkback to Applications. The app is not signed by Apple, so the first time: right-click the app and choose Open, or allow it under System Settings > Privacy & Security > Open Anyway. For Live Assist, allow Microphone and Screen Recording when asked.
+
+In the desktop app, Live Assist listens to the computer's own sound, so there is no tab to share. It needs the Groq key. If the computer's sound cannot be captured (seen with some USB headsets on Windows, and possible on Mac), it falls back to the microphone and says so.
+
+## Run it in a browser
 
 Open `index.html` in a browser. Then go to **Settings** and pick a provider:
 
@@ -45,6 +52,9 @@ node test.js
 - `index.html`, `styles.css`: the UI
 - `app.js`: UI behaviour
 - `ai.js`: provider requests and prompts (the part covered by `test.js`)
+- `main.js`: the desktop window (Electron)
+
+Desktop app: `npm install`, then `npm start` to run it or `npm run dist` to build it for the system you are on. Pushing a version tag (`git tag v0.1.1 && git push origin v0.1.1`) makes GitHub build the Windows and Mac downloads and attach them to a release.
 
 ## License
 

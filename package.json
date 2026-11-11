@@ -1,0 +1,44 @@
+{
+  "name": "talkback",
+  "version": "0.1.0",
+  "description": "Open source AI practice and live-call assistant",
+  "author": "talkback contributors",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test.js",
+    "dist": "electron-builder --publish never"
+  },
+  "build": {
+    "appId": "com.talkback.app",
+    "productName": "talkback",
+    "files": [
+      "index.html",
+      "styles.css",
+      "app.js",
+      "ai.js",
+      "main.js"
+    ],
+    "win": {
+      "target": "portable",
+      "artifactName": "talkback-windows.exe"
+    },
+    "mac": {
+      "target": {
+        "target": "dmg",
+        "arch": "universal"
+      },
+      "artifactName": "talkback-mac.dmg",
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "talkback listens to your microphone to transcribe what you say during a call.",
+        "NSAudioCaptureUsageDescription": "talkback listens to your computer's sound to transcribe the other side of a call."
+      }
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0"
+  }
+}

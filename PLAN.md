@@ -1,6 +1,6 @@
 # talkback plan
 
-Saved 2026-11-11. Work is paused here at the owner's request.
+Updated 2026-11-11.
 
 ## Done
 
@@ -9,27 +9,31 @@ Saved 2026-11-11. Work is paused here at the owner's request.
 - Answers come from Claude (Anthropic API) by default, with the user's own key. An OpenAI-compatible provider is the alternative.
 - Live Assist: Auto Answer, Answer now, document upload, end-of-call AI notes.
 - "Grid" design (mockup 1 in `mockups.html`) applied to the real app. Dark only.
-- Live listening with a Groq key: captures shared tab audio ("Them") and the microphone ("You"), cuts audio into utterances, transcribes each with Groq Whisper (`whisper-large-v3-turbo`). Without a Groq key it falls back to browser speech recognition on the microphone.
+- Live listening with a Groq key: captures the shared call audio ("Them") and the microphone ("You"), cuts audio into utterances, transcribes each with Groq Whisper (`whisper-large-v3-turbo`). Without a Groq key it falls back to browser speech recognition on the microphone.
+- Desktop app (Electron, `main.js`): same files in a window; "sharing" means the computer's own sound, no picker. Windows portable EXE builds locally with `npm run dist`.
+- Release workflow (`.github/workflows/release.yml`): pushing a `v*` tag builds the Windows EXE and Mac DMG on GitHub and attaches them to a release.
 
-## Written but not yet verified
+## Verified so far
 
-- The shared-audio + Groq path has only been syntax-checked and unit-tested (`node test.js` covers request building, question detection and utterance cutting). It has not been run against a real call, a real Groq key or a real Claude key.
-- README does not yet describe the Groq key or shared-audio listening.
+- `node test.js`: request building, question detection, utterance cutting.
+- Inside the desktop app on Windows: the page loads, Anthropic and Groq are reachable from it (both answered a dummy key with 401, so nothing is blocked), the microphone opens, and the level worklet reports about 20 times a second.
+
+## Known problems and not yet verified
+
+- Capturing the computer's sound failed on the development PC ("Could not start audio source") with a USB headset as the output device, on Electron 45 and 39. Cause not confirmed. The app falls back to the microphone and says so. Worth retrying with speakers or a monitor as the Windows output device.
+- Nothing has been run with real Claude or Groq keys, or on a real call.
+- The Mac build has never been run. Mac system-sound capture is the riskiest part; it needs Screen Recording permission and may not work at all, in which case the microphone fallback applies.
+- Neither build is code-signed: Windows shows a SmartScreen notice, macOS needs "Open Anyway". Signing costs roughly $99/year (Apple) and $100-400/year (Windows).
 
 ## Next steps
 
-1. Try Live Assist in Chrome with real Claude and Groq keys on a test call. Watch for: the worklet loading, utterances arriving in order, and echo (use headphones so the mic does not re-hear the other side).
-2. Update `README.md` for the Groq key and shared-audio listening.
-3. Windows EXE (requested, not started): wrap the same files in Electron.
-   - `main.js`: one window loading `index.html`; a display-media handler that returns system audio (`audio: 'loopback'`) so the call is heard with no share picker.
-   - `package.json` with `electron` and `electron-builder`, target `portable` (single `.exe`). If the builder fails on Windows symlink permissions, fall back to `@electron/packager` (folder with `talkback.exe`).
-   - Browser speech recognition does not work inside Electron, so the EXE needs the Groq key for listening.
-   - Unsigned build: Windows shows an "unknown publisher" warning. Code signing costs roughly $100-400/year.
-4. Open question from the owner's message "have it link": meaning not confirmed. Best guess is "connect to the call audio automatically", which step 3's loopback capture does. Ask before building anything else for it.
-5. Small leftovers: download button for AI notes, streaming replies.
+1. Test the desktop app with real keys on a test call, on Windows and on the Mac.
+2. If system sound still fails on Windows with other output devices, investigate (try `desktopCapturer` window sources, or a virtual audio cable as a workaround).
+3. Open question from the owner's message "have it link": meaning not confirmed. Best guess is "connect to the call audio automatically", which the desktop app's system-sound capture is meant to do.
+4. Small leftovers: download button for AI notes, streaming replies, an app icon.
 
 ## Decisions
 
 - No hiding from screen sharing. The app is for practice and for calls where AI help is allowed and disclosed.
-- Bring-your-own keys, stored in the browser's local storage; nothing else leaves the machine except calls to Anthropic (answers) and Groq (transcription).
+- Bring-your-own keys, stored locally; nothing leaves the machine except calls to Anthropic (answers) and Groq (transcription).
 - MIT license.

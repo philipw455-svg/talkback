@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>talkback</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<aside class="side">
+  <h1 class="logo">talk<span>back</span></h1>
+  <nav aria-label="Sections">
+    <button data-tab="math" aria-current="page">Solve Math</button>
+    <button data-tab="qa">Interview Answers</button>
+    <button data-tab="mock">Mock Interview</button>
+    <button data-tab="live">Live Assist</button>
+    <button data-tab="settings">Settings</button>
+  </nav>
+  <p class="side-note">Open source practice tool. Your key and files stay in this browser and go only to the AI provider you pick.</p>
+</aside>
+
+<main>
+  <section id="math" class="tab">
+    <header>
+      <h2>Solve Math</h2>
+      <p>Type a problem or attach a photo of one. Ask follow-ups in the same thread.</p>
+    </header>
+    <div class="thread" id="math-thread" aria-live="polite"></div>
+    <form class="composer" id="math-form">
+      <label class="sr" for="math-input">Math problem</label>
+      <textarea id="math-input" rows="2" placeholder="e.g. Solve 2x² − 5x − 3 = 0"></textarea>
+      <div class="row">
+        <label class="btn ghost">Attach photo
+          <input class="sr" type="file" id="math-image" accept="image/png,image/jpeg,image/webp,image/gif">
+        </label>
+        <span class="hint grow" id="math-image-name"></span>
+        <button type="button" class="btn ghost" id="math-clear">Clear</button>
+        <button class="btn">Solve</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="qa" class="tab" hidden>
+    <header>
+      <h2>Interview Answers</h2>
+      <p>Paste any interview question and get a strong answer. Answers use your resume and job description if you added them under Mock Interview.</p>
+    </header>
+    <div class="thread" id="qa-thread" aria-live="polite"></div>
+    <form class="composer" id="qa-form">
+      <label class="sr" for="qa-input">Interview question</label>
+      <textarea id="qa-input" rows="2" placeholder="e.g. Tell me about a time you disagreed with your manager."></textarea>
+      <div class="row">
+        <label for="qa-style">Style</label>
+        <select id="qa-style">
+          <option value="star">STAR story</option>
+          <option value="concise">Concise</option>
+          <option value="detailed">Detailed</option>
+        </select>
+        <span class="grow"></span>
+        <button type="button" class="btn ghost" id="qa-clear">Clear</button>
+        <button class="btn">Answer</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="mock" class="tab" hidden>
+    <header>
+      <h2>Mock Interview</h2>
+      <p>Upload your resume and the job description. An AI interviewer asks tailored questions one at a time, gives feedback on each answer, and ends with a scored report.</p>
+    </header>
+
+    <form id="mock-setup" class="setup">
+      <div class="cols">
+        <div class="field">
+          <label for="resume-text">Resume</label>
+          <textarea id="resume-text" rows="9" placeholder="Paste your resume here, or upload a file below."></textarea>
+          <label class="btn ghost">Upload resume (.pdf, .txt, .md)
+            <input class="sr" type="file" id="resume-file" accept=".pdf,.txt,.md,application/pdf,text/plain">
+          </label>
+          <span class="hint" id="resume-name"></span>
+        </div>
+        <div class="field">
+          <label for="jd-text">Job description</label>
+          <textarea id="jd-text" rows="9" placeholder="Paste the job description here, or upload a file below."></textarea>
+          <label class="btn ghost">Upload job description (.txt, .md)
+            <input class="sr" type="file" id="jd-file" accept=".txt,.md,text/plain">
+          </label>
+        </div>
+      </div>
+      <div class="row">
+        <label for="mock-type">Focus</label>
+        <select id="mock-type">
+          <option value="mixed">Mixed</option>
+          <option value="behavioral">Behavioral</option>
+          <option value="technical">Technical</option>
+        </select>
+        <label for="mock-count">Questions</label>
+        <select id="mock-count">
+          <option>3</option>
+          <option selected>5</option>
+          <option>8</option>
+        </select>
+        <span class="hint error-text grow" id="mock-error" role="alert"></span>
+        <button class="btn">Start interview</button>
+      </div>
+    </form>
+
+    <div id="mock-chat" class="chat" hidden>
+      <div class="thread" id="mock-thread" aria-live="polite"></div>
+      <form class="composer" id="mock-form">
+        <label class="sr" for="mock-input">Your answer</label>
+        <textarea id="mock-input" rows="3" placeholder="Type your answer…"></textarea>
+        <div class="row">
+          <button type="button" class="btn ghost" id="mock-mic" aria-pressed="false" hidden>Dictate</button>
+          <label class="check"><input type="checkbox" id="mock-speak"> Read questions aloud</label>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" id="mock-new">New interview</button>
+          <button type="button" class="btn ghost" id="mock-end">End &amp; get report</button>
+          <button class="btn" id="mock-send">Send answer</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section id="live" class="tab" hidden>
+    <header>
+      <h2>Live Assist</h2>
+      <p>Listens to your call, writes down who said what, and suggests an answer when the other side asks a question. Answers use your documents, resume and job description. Needs a Groq key in Settings; without one it hears only your microphone. Use it only where AI help is allowed, and tell the people on the call.</p>
+    </header>
+    <div class="thread" id="live-thread" aria-live="polite"></div>
+    <div class="composer">
+      <div class="row">
+        <label class="btn ghost">Add documents (.pdf, .txt, .md)
+          <input class="sr" type="file" id="live-docs-file" multiple accept=".pdf,.txt,.md,application/pdf,text/plain">
+        </label>
+        <button type="button" class="btn ghost" id="live-docs-clear" hidden>Remove documents</button>
+        <span class="hint grow" id="live-docs"></span>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="live-auto" checked> Auto Answer</label>
+        <span class="hint error-text grow" id="live-error" role="alert"></span>
+        <button type="button" class="btn ghost" id="live-answer">Answer now</button>
+        <button type="button" class="btn ghost" id="live-notes">End &amp; get notes</button>
+        <button type="button" class="btn" id="live-toggle" aria-pressed="false">Start listening</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="settings" class="tab" hidden>
+    <header>
+      <h2>Settings</h2>
+      <p>talkback has no server. It calls the AI provider directly from your browser using your own key.</p>
+    </header>
+    <form id="settings-form" class="setup narrow">
+      <div class="field">
+        <label for="set-provider">Provider</label>
+        <select id="set-provider" name="provider">
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="openai">OpenAI-compatible (OpenAI, Ollama, LM Studio…)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="set-key">API key</label>
+        <input id="set-key" name="key" type="password" autocomplete="off" spellcheck="false">
+        <span class="hint">Stored only in this browser's local storage. Not needed for a local server like Ollama.</span>
+      </div>
+      <div class="field">
+        <label for="set-model">Model</label>
+        <input id="set-model" name="model" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="set-base">Base URL (OpenAI-compatible only)</label>
+        <input id="set-base" name="baseUrl" placeholder="https://api.openai.com/v1" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="set-groq">Groq API key (Live Assist transcription)</label>
+        <input id="set-groq" name="groqKey" type="password" autocomplete="off" spellcheck="false">
+        <span class="hint">Lets Live Assist hear the call itself and label who spoke. Free key from console.groq.com. Call audio is sent to Groq to be transcribed.</span>
+      </div>
+      <div class="row">
+        <button class="btn">Save</button>
+        <span class="hint" id="settings-status" role="status"></span>
+      </div>
+    </form>
+  </section>
+</main>
+
+<script src="ai.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

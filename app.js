@@ -287,34 +287,31 @@ function startBrowser() {
   return () => { active = false; rec.stop(); };
 }
 
-// Reports the audio level about 20 times a second. It runs on the audio thread, so it keeps
+// Hands over raw audio in ~0.1 s pieces with their loudness. It runs on the audio thread, so it keeps
 // working while this window is in the background (timers are throttled there).
-const LEVEL_WORKLET = URL.createObjectURL(new Blob([`registerProcessor('level', class extends AudioWorkletProcessor {
-  constructor() { super(); this.peak = 0; this.blocks = 0; }
+const CAPTURE_WORKLET = URL.createObjectURL(new Blob([`registerProcessor('capture', class extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = new Float32Array(1536); this.n = 0; }
   process([input]) {
-    for (const s of input[0] || []) this.peak = Math.max(this.peak, Math.abs(s));
-    if (++this.blocks === 16) { this.port.postMessage(this.peak); this.peak = this.blocks = 0; }
+    if (input[0]) { this.buf.set(input[0], this.n); this.n += input[0].length; }
+    if (this.n < this.buf.length) return true;
+    let peak = 0;
+    for (const s of this.buf) peak = Math.max(peak, Math.abs(s));
+    this.port.postMessage({ samples: this.buf, peak });
+    this.buf = new Float32Array(1536); this.n = 0;
     return true;
   }
 });`], { type: 'text/javascript' }));
 
-// Records one stream an utterance at a time and sends each to Groq. Returns a function that flushes the last one.
+// Cuts one stream into utterances and sends each to Groq. Returns a function that sends whatever is in progress.
 function watchStream(ctx, stream, who, key) {
-  const audio = new MediaStream(stream.getAudioTracks());
-  const node = new AudioWorkletNode(ctx, 'level'), segment = AI.makeSegmenter();
-  let rec;
-  ctx.createMediaStreamSource(audio).connect(node).connect(ctx.destination); // the node outputs silence; connecting it keeps it running
-  node.port.onmessage = e => {
-    const action = segment(e.data, performance.now());
-    if (action === 'start') {
-      const chunks = [], r = rec = new MediaRecorder(audio);
-      r.ondataavailable = d => chunks.push(d.data);
-      r.onstop = () => AI.transcribe(key, new Blob(chunks, { type: r.mimeType }))
-        .then(said => heard(said, who), err => { liveError.textContent = err.message; });
-      r.start();
-    } else if (action === 'stop' && rec.state === 'recording') rec.stop();
-  };
-  return () => { if (rec?.state === 'recording') rec.stop(); };
+  const node = new AudioWorkletNode(ctx, 'capture', { channelCount: 1, channelCountMode: 'explicit' });
+  const collector = AI.makeCollector();
+  // shortcut: assumes the call is in the computer's language; add a language setting if people need another.
+  const send = utterance => utterance && AI.transcribe(key, new Blob([AI.encodeWav(utterance, ctx.sampleRate)], { type: 'audio/wav' }), navigator.language.slice(0, 2))
+    .then(said => heard(said, who), err => { liveError.textContent = err.message; });
+  ctx.createMediaStreamSource(new MediaStream(stream.getAudioTracks())).connect(node).connect(ctx.destination); // the node outputs silence; connecting it keeps it running
+  node.port.onmessage = e => send(collector.push(e.data.samples, e.data.peak, e.data.samples.length / ctx.sampleRate * 1000));
+  return () => send(collector.flush());
 }
 
 // With a Groq key: the shared call audio is "Them", the microphone is "You".
@@ -327,7 +324,7 @@ async function startGroq() {
   }
   const mic = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null);
   if (!shared && !mic) throw new Error('Neither the computer\'s sound nor the microphone could be opened.');
-  const ctx = new AudioContext(), flush = [];
+  const ctx = new AudioContext({ sampleRate: 16000 }), flush = []; // 16 kHz is all speech recognition needs: small, fast uploads
   const stop = () => {
     flush.forEach(f => f());
     [shared, mic].forEach(s => s?.getTracks().forEach(t => t.stop()));
@@ -335,12 +332,12 @@ async function startGroq() {
   };
   try {
     if (shared && !shared.getAudioTracks().length) throw new Error('No audio was shared. Pick the tab with your call and turn on "Also share tab audio".');
-    await ctx.audioWorklet.addModule(LEVEL_WORKLET);
+    await ctx.audioWorklet.addModule(CAPTURE_WORKLET);
     if (shared) flush.push(watchStream(ctx, shared, 'Them', settings.groqKey));
     // Without the shared sound the microphone may hear both sides, so its lines get no label.
     if (mic) flush.push(watchStream(ctx, mic, shared ? 'You' : undefined, settings.groqKey));
     if (!mic) liveError.textContent = 'Microphone is blocked, so only the other side is transcribed.';
-    if (!shared) liveError.textContent = 'Could not capture this computer\'s sound, so only your microphone is heard. Play the call on speakers, or switch the sound output away from a USB headset and try again.';
+    if (!shared) liveError.textContent = 'Could not capture this computer\'s sound, so only your microphone is heard. Windows refused the sound format of your output device. Play the call on speakers, or pick a different output device in Windows sound settings, then try again.';
   } catch (err) { stop(); throw err; }
   shared?.getTracks().forEach(t => t.onended = () => stopListening()); // user pressed the browser's "Stop sharing"
   return stop;

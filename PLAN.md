@@ -20,7 +20,8 @@ Updated 2026-11-11.
 
 ## Known problems and not yet verified
 
-- Capturing the computer's sound failed on the development PC ("Could not start audio source") with a USB headset as the output device, on Electron 45 and 39. Cause not confirmed. The app falls back to the microphone and says so. Worth retrying with speakers or a monitor as the Windows output device.
+- Capturing the computer's sound fails on the development PC ("Could not start audio source") with a Logitech USB headset as the output device, on Electron 45 and 39. Cause found in Electron's verbose log: Windows rejects the capture format (`IAudioClient::Initialize` returns `0x88890008`, unsupported format; Chromium asks for 44.1 kHz stereo). The app cannot choose another device or format. It falls back to the microphone and says so. Things to try: a different Windows output device (speakers, monitor), or changing the headset's default format / turning off its surround mode in Windows sound settings.
+- Listening pipeline (changed after "hearing the call is not efficient enough"): audio is captured raw at 16 kHz, cut after 0.5 s of silence (12 s cap), with a 0.3 s lead-in so first words are not clipped; blips are dropped; uploads are small WAV files; Whisper is told the computer's language. Checked on the microphone inside the desktop app with transcription stubbed. Not yet checked with a real Groq key.
 - Nothing has been run with real Claude or Groq keys, or on a real call.
 - The Mac build has never been run. Mac system-sound capture is the riskiest part; it needs Screen Recording permission and may not work at all, in which case the microphone fallback applies.
 - Neither build is code-signed: Windows shows a SmartScreen notice, macOS needs "Open Anyway". Signing costs roughly $99/year (Apple) and $100-400/year (Windows).

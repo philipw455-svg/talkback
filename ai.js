@@ -87,10 +87,13 @@ async function complete(cfg, system, messages) {
 }
 
 // Speech to text with Groq's hosted Whisper. Takes one recorded utterance, returns its text.
-async function transcribe(key, blob) {
+// Naming the language skips Whisper's guess, which is slow and often wrong on short clips.
+async function transcribe(key, blob, language) {
   const form = new FormData();
-  form.append('file', blob, 'audio.webm');
+  form.append('file', blob, 'audio.wav');
   form.append('model', 'whisper-large-v3-turbo');
+  form.append('temperature', '0');
+  if (language) form.append('language', language);
   let res;
   try {
     res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { authorization: `Bearer ${key}` }, body: form });
@@ -105,7 +108,7 @@ async function transcribe(key, blob) {
 // Decides when to start and cut a recording from audio level samples, so each
 // recording is one utterance: it starts on sound and is cut after a pause.
 // shortcut: fixed loudness threshold, so a noisy room may never "pause"; maxMs caps that. Swap in a real voice detector if it matters.
-function makeSegmenter({ threshold = 0.03, silenceMs = 700, maxMs = 20000 } = {}) {
+function makeSegmenter({ threshold = 0.03, silenceMs = 500, maxMs = 12000 } = {}) {
   let start = null, lastVoice = 0;
   return (level, now) => {
     const voiced = level > threshold;
@@ -121,5 +124,45 @@ function makeSegmenter({ threshold = 0.03, silenceMs = 700, maxMs = 20000 } = {}
   };
 }
 
-const TalkbackAI = { DEFAULT_MODELS, PROMPTS, isQuestion, buildRequest, parseResponse, complete, transcribe, makeSegmenter };
+// Groups audio pieces into utterances. push() returns a finished utterance (a list of pieces) or null.
+// It keeps a short lead-in from before the first sound so first words are not clipped,
+// and drops blips too short to be speech (a click or cough makes Whisper invent words).
+function makeCollector({ threshold = 0.03, leadIn = 3, minVoiced = 2, ...rest } = {}) {
+  const segment = makeSegmenter({ threshold, ...rest }), lead = [];
+  let current = null, voiced = 0, now = 0;
+  const finish = () => {
+    const done = current && voiced >= minVoiced ? current : null;
+    current = null;
+    lead.length = 0;
+    return done;
+  };
+  return {
+    push(samples, peak, ms) {
+      now += ms;
+      const action = segment(peak, now);
+      if (action === 'start') { current = [...lead]; voiced = 0; }
+      if (current) { current.push(samples); if (peak > threshold) voiced++; }
+      else { lead.push(samples); if (lead.length > leadIn) lead.shift(); }
+      return action === 'stop' ? finish() : null;
+    },
+    flush: finish,
+  };
+}
+
+// Mono 16-bit WAV from float audio pieces.
+function encodeWav(chunks, sampleRate) {
+  const bytes = chunks.reduce((n, c) => n + c.length, 0) * 2;
+  const view = new DataView(new ArrayBuffer(44 + bytes));
+  const text = (at, s) => [...s].forEach((ch, i) => view.setUint8(at + i, ch.charCodeAt(0)));
+  text(0, 'RIFF'); view.setUint32(4, 36 + bytes, true); text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, bytes, true);
+  let at = 44;
+  for (const chunk of chunks) for (const s of chunk) { view.setInt16(at, Math.max(-1, Math.min(1, s)) * 0x7fff, true); at += 2; }
+  return view.buffer;
+}
+
+const TalkbackAI = { DEFAULT_MODELS, PROMPTS, isQuestion, buildRequest, parseResponse, complete, transcribe, makeSegmenter, makeCollector, encodeWav };
 if (typeof module !== 'undefined') module.exports = TalkbackAI;

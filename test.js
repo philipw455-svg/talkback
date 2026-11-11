@@ -56,4 +56,24 @@ assert.equal(seg(0.5, 2000), 'start');
 assert.equal(seg(0.5, 6999), null);
 assert.equal(seg(0.5, 7000), 'stop');    // still talking at the cap
 
+// Utterance collecting: keeps a lead-in, returns the pieces when the speaker pauses, drops blips
+const col = AI.makeCollector({ silenceMs: 300, leadIn: 2, minVoiced: 2 });
+const feed = (name, loud) => col.push(name, loud ? 0.5 : 0.01, 100);
+assert.equal(feed('q1'), null); assert.equal(feed('q2'), null); assert.equal(feed('q3'), null);
+assert.equal(feed('L1', true), null); assert.equal(feed('L2', true), null);
+assert.equal(feed('q4'), null); assert.equal(feed('q5'), null);
+assert.deepEqual(feed('q6'), ['q2', 'q3', 'L1', 'L2', 'q4', 'q5', 'q6']);
+feed('q7'); feed('blip', true); feed('q8'); feed('q9');
+assert.equal(feed('q10'), null);                       // one loud piece is not speech
+feed('L3', true); feed('L4', true);
+assert.deepEqual(col.flush(), ['L3', 'L4']);           // stopping mid-sentence keeps what was said
+assert.equal(col.flush(), null);
+
+// WAV encoding: header and 16-bit samples
+const wav = new DataView(AI.encodeWav([Float32Array.of(0, 1), Float32Array.of(-1)], 16000));
+assert.equal(wav.byteLength, 44 + 6);
+assert.equal(String.fromCharCode(wav.getUint8(0), wav.getUint8(1), wav.getUint8(2), wav.getUint8(3)), 'RIFF');
+assert.equal(wav.getUint32(24, true), 16000);
+assert.deepEqual([wav.getInt16(44, true), wav.getInt16(46, true), wav.getInt16(48, true)], [0, 32767, -32767]);
+
 console.log('ok');
